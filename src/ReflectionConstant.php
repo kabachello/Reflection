@@ -126,21 +126,25 @@ class ReflectionConstant implements \Reflector
      * @param string $fileName an existing filename
      * @return string
      */
-    private function getDocCommentFromFile($fileName)
+    private function getDocCommentFromFile($fileName, $class = null)
     {
         $lines = file($fileName, FILE_IGNORE_NEW_LINES);
-
-        $declaringClassStartLine = $this->getDeclaringClass()->getStartLine() - 1;
-        $declaringClassLength = $this->getDeclaringClass()->getEndLine() - $declaringClassStartLine + 1;
-
+        
+        if($class === null) {
+            $class = $this->getDeclaringClass();
+        }
+        
+        $declaringClassStartLine = $class->getStartLine() - 1;
+        $declaringClassLength = $class->getEndLine() - $declaringClassStartLine + 1;
+        
         $currentClassLines = array_slice($lines, $declaringClassStartLine, $declaringClassLength, true);
-
+        
         // Need the php open tag to tokenize the class.
         $tokens = token_get_all("<?php\n" . implode("\n", $currentClassLines));
-
+        
         $return = false;
         $constDeclarationKey = $this->getCurrentConstantKeyFromClassTokens($tokens);
-
+        
         // Now we have the key value of the constant declaration, we have to pick up the comment before the declaration (if it exists).
         for ($constDeclarationKey--; $constDeclarationKey > 0; $constDeclarationKey--) {
             if ($tokens[$constDeclarationKey][0] !== T_WHITESPACE && $tokens[$constDeclarationKey][0] !== T_DOC_COMMENT) {
@@ -150,7 +154,11 @@ class ReflectionConstant implements \Reflector
                 break;
             }
         }
-
+        
+        if ($return === false && $parentClass = $class->getParentClass()) {
+            $return = $this->getDocCommentFromFile($parentClass->getFileName(), $parentClass);
+        }
+        
         return $return;
     }
 
